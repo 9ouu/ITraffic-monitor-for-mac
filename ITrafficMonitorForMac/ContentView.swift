@@ -35,11 +35,23 @@ struct ContentView: View {
                         Image("github")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
+                            .frame(width: 17, height: 17)
+                    }
+
+                    // --- 新增的网络图标按钮 ---
+                    Button(action: {
+                        // 打开活动监视器
+                        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+                    }) {
+                        Image(systemName: "network")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 17, height: 17)
                     }
                     
                     Button(action: AppDelegate.quit) {
                         Image(systemName: "xmark.seal.fill")
+                            .frame(width: 17, height: 17)
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
