@@ -20,7 +20,7 @@ struct ContentView: View {
                 Text("v\(appVersion)").foregroundColor(Color.gray).font(.system(size: 11, weight: .regular))
                 Spacer()
                 MenuItem(id: "menu.github", text: "Github", action: {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/9ouu")!)
+                    NSWorkspace.shared.open(URL(string: "https://github.com/9ouu/ITraffic-monitor-for-mac")!)
                 }).padding([.trailing], 10)
                 MenuItem(id: "menu.quit", text: "Quit", action: AppDelegate.quit).padding([.trailing], 30)
             }.frame(width: 350)
