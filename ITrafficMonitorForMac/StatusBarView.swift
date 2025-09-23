@@ -41,8 +41,6 @@ struct StatusBarView: View {
                 }
             }
             .padding(.leading, 2) // 给整个视图添加一点左边距，避免贴边
-            
-            Spacer() // 添加一个 Spacer 将所有内容推向左边
         }
     }
 }

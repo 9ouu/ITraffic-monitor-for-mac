@@ -15,6 +15,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             // MARK: - Header View
             HStack(spacing: 0) {
+                // ... (此部分无须修改)
                 Image("Itraffic-logo-text")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -38,9 +39,7 @@ struct ContentView: View {
                             .frame(width: 17, height: 17)
                     }
 
-                    // --- 新增的网络图标按钮 ---
                     Button(action: {
-                        // 打开活动监视器
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
                     }) {
                         Image(systemName: "network")
@@ -62,25 +61,23 @@ struct ContentView: View {
             .frame(height: 40)
             
             // MARK: - List Header
-            // --- 最终对齐方案 ---
-            // 采用与 ProcessRow 完全一致的结构和边距
             HStack(alignment: .center, spacing: 10) {
                 HStack(spacing: 4) {
-                    // 空白占位符，宽度与下方图标(22)一致
                     Spacer().frame(width: 22)
                     Text("Application")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
+                // --- 修改 1: 给表头设定一个固定的宽度并左对齐 ---
                 Text("Upload")
-                    .frame(width: 75, alignment: .leading)
+                    .frame(width: 85, alignment: .leading) // 使用固定宽度
                 
                 Text("Download")
-                    .frame(width: 75, alignment: .leading)
+                    .frame(width: 85, alignment: .leading) // 使用固定宽度
             }
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.secondary)
-            .padding(.horizontal, 4) // 与下方 listRowInsets 的左右边距保持一致
+            .padding(.horizontal, 4)
             .padding(.bottom, 5)
 
             Divider()
@@ -89,15 +86,14 @@ struct ContentView: View {
             List {
                 ForEach(viewModel.items) { item in
                     ProcessRow(processEntity: item)
-                        // 由 listRowInsets 统一控制所有行的边距
                         .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4))
                 }
             }
             .listStyle(PlainListStyle())
-            .frame(height: 410)
+            .frame(height: 400)
             
         }
-        .frame(width: 370) // 按要求调整宽度
+        .frame(width: 380)
         .background(.thinMaterial)
     }
 }
@@ -109,8 +105,6 @@ struct ProcessRow: View {
     var body: some View {
         let appInfo = getAppInfo(pid: processEntity.pid, name: processEntity.name)
         
-        // --- 最终对齐方案 ---
-        // 移除所有 .padding 修饰符，由 List 的 listRowInsets 控制
         HStack(alignment: .center, spacing: 10) {
             HStack(spacing: 4) {
                 Image(nsImage: appInfo?.icon ?? NSImage())
@@ -125,21 +119,26 @@ struct ProcessRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
+            // --- 修改 2: 关键修改，实现整齐的左对齐 ---
             HStack(spacing: 4) {
                 Image(systemName: "arrow.up.circle.fill")
                     .foregroundColor(.blue)
+                // 让 Text 自动填满 Hstack 中的剩余空间，并将其中的内容左对齐
                 Text(formatBytes(bytes: processEntity.outBytes))
                     .font(.system(size: 12).monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: 75, alignment: .leading)
+            .frame(width: 85, alignment: .leading) // 给整列一个固定的宽度
 
             HStack(spacing: 4) {
                 Image(systemName: "arrow.down.circle.fill")
                     .foregroundColor(.green)
+                // 同样地，让 Text 填满空间并左对齐
                 Text(formatBytes(bytes: processEntity.inBytes))
                     .font(.system(size: 12).monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: 75, alignment: .leading)
+            .frame(width: 85, alignment: .leading) // 给整列一个固定的宽度
         }
         .background(isHovering ? Color.primary.opacity(0.1) : Color.clear)
         .cornerRadius(6)
@@ -152,6 +151,7 @@ struct ProcessRow: View {
 
 // MARK: - Preview
 struct ContentView_Previews: PreviewProvider {
+    // ... (此部分无须修改)
     static var previews: some View {
         let mockViewModel = ListViewModel()
         let mockProcess = ProcessEntity(pid: 123, name: "ShortApp", inBytes: 12345, outBytes: 67890)
