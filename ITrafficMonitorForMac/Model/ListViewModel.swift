@@ -38,19 +38,6 @@ class ListViewModel: ObservableObject {
         }
         
         items = items.filter(){ pidInNewItems["\($0.pid)"] ?? -1 != -1 }
-        
-        items = sort(items: items)
-    }
-    
-    func sort(items: [ProcessEntity]) -> [ProcessEntity] {
-        return items.sorted {  (lhs:ProcessEntity, rhs:ProcessEntity) in
-            let lTotalBytes = lhs.inBytes + lhs.outBytes
-            let rTotalBytes = rhs.inBytes + rhs.outBytes
-            if lTotalBytes != rTotalBytes {
-                return lTotalBytes > rTotalBytes
-            }
-            return lhs.name < rhs.name
-        }
     }
     
     public func shouldClearItemsForReduceSomeMemory() -> Bool {

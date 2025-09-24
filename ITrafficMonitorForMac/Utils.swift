@@ -22,6 +22,8 @@ func formatBytes(bytes: Int) -> String {
 struct AppInfo {
     var icon: NSImage
     var name: String?
+    var path: String?
+    var bundleIdentifier: String?
     var updateTime: Int
 }
 
@@ -41,8 +43,10 @@ func getAppInfo(pid: Int, name: String) -> AppInfo? {
     let appIns = NSRunningApplication(processIdentifier: pid_t(pid))
     
     let icon = resize(image: (appIns?.icon ?? NSImage(named: "blank"))!, w: 16, h: 16)
+    let appPath = appIns?.bundleURL?.path
+    let bundleIdentifier = appIns?.bundleIdentifier
     
-    APP_INFO_CACHE[cacheKey] = AppInfo(icon: icon, name: appIns?.localizedName ?? name, updateTime: timestamp)
+    APP_INFO_CACHE[cacheKey] = AppInfo(icon: icon, name: appIns?.localizedName ?? name, path: appPath, bundleIdentifier: bundleIdentifier, updateTime: timestamp)
     return APP_INFO_CACHE[cacheKey]
 }
 
