@@ -76,7 +76,7 @@ struct ContentView: View {
             .frame(height: 410)
             
         }
-        .frame(width: 385) // 按要求调整宽度
+        .frame(width: 410) // 按要求调整宽度
         .background(.thinMaterial)
         .onChange(of: globalModel.viewShowing) { isShowing in
             if !isShowing {
@@ -84,6 +84,48 @@ struct ContentView: View {
                 viewModel.collapseAllItems()
             }
         }
+     }
+}
+
+// MARK: - NetworkConnectionCard
+struct NetworkConnectionCard: View {
+    let processEntity: ProcessEntity
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "network")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.blue)
+                    
+                    Text("网络连接")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.primary.opacity(0.02))
+            
+            Divider()
+                .opacity(0.3)
+            
+            // 网络连接内容
+            NetworkConnectionsView(processEntity: processEntity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                )
+        )
     }
 }
 
@@ -146,128 +188,82 @@ struct ProcessRow: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
-            .contextMenu {
-                Button(action: {
-                    killProcess(pid: processEntity.pid)
-                }) {
-                    HStack {
-                        Image(systemName: "x.circle.fill")
-                        Text("Kill 程序")
-                    }
-                }
-                
-                Button(action: {
-                    openPath(path: processEntity.executableURL)
-                }) {
-                    HStack {
-                        Image(systemName: "waveform.path.ecg.magnifyingglass")
-                        Text("打开路径")
-                    }
-                }
-                
-                Button(action: {
-                    copyToClipboard(text: processEntity.executableURL ?? "N/A")
-                }) {
-                    HStack {
-                        Image(systemName: "document.on.document")
-                        Text("复制路径")
-                    }
-                }
-                
-                Button(action: {
-                    copyToClipboard(text: processEntity.bundleIdentifier ?? "N/A")
-                }) {
-                    HStack {
-                        Image(systemName: "document.on.document.fill")
-                        Text("复制包名")
-                    }
-                }
-            }
             
             if processEntity.isExpanded {
                 VStack(spacing: 0) {
+                    // 顶部间距
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(height: 6)
+                        .frame(height: 8)
                     
-                    HStack(spacing: 0) {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(width: 10)
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            // 包名行
-                            HStack(spacing: 0) {
-                                Text("包名:")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 50, alignment: .trailing)
-                                
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: 5)
-                                
-                                Text(processEntity.bundleIdentifier ?? "N/A")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                    VStack(spacing: 12) {
+                        // 应用信息卡片
+                        VStack(spacing: 10) {
+                            // 包名信息
+                            DetailInfoRow(
+                                icon: "app.badge",
+                                iconColor: .blue,
+                                title: "包名",
+                                content: processEntity.bundleIdentifier ?? "N/A",
+                                isSelectable: true
+                            )
                             
-                            // PID行
-                            HStack(spacing: 0) {
-                                Text("PID:")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 50, alignment: .trailing)
-                                
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: 5)
-                                
-                                Text("\(processEntity.pid)".replacingOccurrences(of: ",", with: ""))
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                            // PID信息
+                            DetailInfoRow(
+                                icon: "number.circle",
+                                iconColor: .orange,
+                                title: "PID",
+                                content: "\(processEntity.pid)",
+                                isSelectable: true,
+                                actionType: .pid,
+                                processEntity: processEntity
+                            )
                             
-                            // Path行
-                            HStack(alignment: .top, spacing: 0) {
-                                Text("Path:")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 50, alignment: .trailing)
-                                
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: 5)
-                                
-                                Text(processEntity.executableURL ?? "N/A")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(10)
-                                    .truncationMode(.middle)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            
-                            // 网络连接信息
-                            NetworkConnectionsView(processEntity: processEntity)
+                            // 路径信息
+                            DetailInfoRow(
+                                icon: "folder",
+                                iconColor: .green,
+                                title: "路径",
+                                content: processEntity.executableURL ?? "N/A",
+                                isMultiline: true,
+                                isSelectable: true,
+                                actionType: .path
+                            )
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.primary.opacity(0.03))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                                )
+                        )
                         
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(width: 8)
+                        // 网络连接卡片
+                        NetworkConnectionCard(processEntity: processEntity)
                     }
+                    .padding(.horizontal, 12)
                     
+                    // 底部间距
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(height: 6)
+                        .frame(height: 8)
                 }
-                .background(Color.primary.opacity(0.05))
-                .cornerRadius(6)
-                .transition(.opacity)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95))
+                ))
+                .animation(.easeInOut(duration: 0.2), value: processEntity.isExpanded)
             }
         }
     }
@@ -293,66 +289,86 @@ struct NetworkConnectionsView: View {
     @State private var isLoading = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 0) {
-                Text("网络:")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: 5)
-                
-                if isLoading {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                        Text("获取连接信息...")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else if connections.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+            if isLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("获取连接信息...")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 12)
+            } else if connections.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    
                     Text("无活动连接")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    VStack(alignment: .leading, spacing: 3) {
-                        // 分组显示TCP和UDP连接
-                        let tcpConnections = connections.filter { $0.protocolType == "TCP" }
-                        let udpConnections = connections.filter { $0.protocolType == "UDP" }
-                        
-                        // 显示TCP连接（最多3个）
-                        if !tcpConnections.isEmpty {
-                            ForEach(tcpConnections.prefix(3)) { connection in
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 16)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    // 分组显示TCP和UDP连接
+                    let tcpConnections = connections.filter { $0.protocolType.contains("TCP") }
+                    let udpConnections = connections.filter { $0.protocolType.contains("UDP") }
+                    
+                    // 显示TCP连接
+                    if !tcpConnections.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(tcpConnections.prefix(4)) { connection in
                                 NetworkConnectionRow(connection: connection)
                             }
                             
-                            if tcpConnections.count > 3 {
-                                Text("... 还有 \(tcpConnections.count - 3) 个TCP连接")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary.opacity(0.7))
-                                    .padding(.leading, 10)
+                            if tcpConnections.count > 4 {
+                                HStack {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary.opacity(0.6))
+                                    
+                                    Text("还有 \(tcpConnections.count - 4) 个TCP连接")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary.opacity(0.7))
+                                }
+                                .padding(.leading, 8)
+                                .padding(.top, 2)
                             }
                         }
+                    }
+                    
+                    // 显示UDP连接
+                    if !udpConnections.isEmpty {
+                        if !tcpConnections.isEmpty {
+                            Divider()
+                                .opacity(0.3)
+                                .padding(.vertical, 4)
+                        }
                         
-                        // 显示UDP连接（最多3个）
-                        if !udpConnections.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
                             ForEach(udpConnections.prefix(3)) { connection in
                                 NetworkConnectionRow(connection: connection)
                             }
                             
                             if udpConnections.count > 3 {
-                                Text("... 还有 \(udpConnections.count - 3) 个UDP连接")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary.opacity(0.7))
-                                    .padding(.leading, 10)
+                                HStack {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary.opacity(0.6))
+                                    
+                                    Text("还有 \(udpConnections.count - 3) 个UDP连接")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary.opacity(0.7))
+                                }
+                                .padding(.leading, 8)
+                                .padding(.top, 2)
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -378,49 +394,100 @@ struct NetworkConnectionsView: View {
 // MARK: - NetworkConnectionRow
 struct NetworkConnectionRow: View {
     let connection: NetworkConnection
+    @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             // 协议标识
             Text(connection.protocolType)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(.white)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .background(connection.protocolType == "TCP" ? Color.blue : Color.orange)
+                .background(protocolColor(connection.protocolType))
                 .cornerRadius(3)
             
             // 连接信息
             if connection.state == "LISTEN" {
-                Text("监听 :\(connection.localPort)")
-                    .font(.system(size: 10).monospaced())
-                    .foregroundColor(.secondary)
-            } else {
                 HStack(spacing: 4) {
-                    // 国旗
-                    if let flag = connection.countryFlag {
-                        Text(flag)
-                            .font(.system(size: 12))
-                    }
+                    Image(systemName: "ear")
+                        .font(.system(size: 9))
+                        .foregroundColor(.blue)
                     
-                    Text("\(connection.remoteAddress):\(connection.remotePort)")
+                    Text("监听 :\(connection.localPort)")
                         .font(.system(size: 10).monospaced())
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    // 连接方向指示器
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 8))
+                        .foregroundColor(.green)
+                    
+                    // 本地地址（简化显示）
+                    if connection.localAddress != "*" && connection.localAddress != "0.0.0.0" {
+                        Text(":\(connection.localPort)")
+                            .font(.system(size: 9).monospaced())
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                    
+                    // 国旗和远程地址
+                    HStack(spacing: 2) {
+                        if let flag = connection.countryFlag {
+                            Text(flag)
+                                .font(.system(size: 11))
+                        }
+                        
+                        Text(formatRemoteAddress(connection.remoteAddress, connection.remotePort))
+                            .font(.system(size: 10).monospaced())
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
             }
             
             Spacer()
             
-            // 状态
-            Text(connection.state)
-                .font(.system(size: 9))
-                .foregroundColor(connectionStateColor(connection.state))
-                .padding(.horizontal, 3)
-                .padding(.vertical, 1)
-                .background(connectionStateColor(connection.state).opacity(0.1))
-                .cornerRadius(2)
+            // 状态指示器
+            HStack(spacing: 4) {
+                // 状态图标
+                Image(systemName: stateIcon(connection.state))
+                    .font(.system(size: 8))
+                    .foregroundColor(connectionStateColor(connection.state))
+                
+                // 状态文本
+                Text(localizedState(connection.state))
+                    .font(.system(size: 9))
+                    .foregroundColor(connectionStateColor(connection.state))
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(connectionStateColor(connection.state).opacity(0.1))
+                    .cornerRadius(2)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(isHovering ? Color.primary.opacity(0.05) : Color.clear)
+        .cornerRadius(4)
+        .onHover { hovering in
+            self.isHovering = hovering
+        }
+    }
+    
+    private func protocolColor(_ protocol: String) -> Color {
+        switch `protocol` {
+        case "TCP":
+            return .blue
+        case "UDP":
+            return .orange
+        case "TCP6":
+            return .purple
+        case "UDP6":
+            return .pink
+        default:
+            return .gray
         }
     }
     
@@ -430,10 +497,208 @@ struct NetworkConnectionRow: View {
             return .green
         case "LISTEN":
             return .blue
-        case "TIME_WAIT", "CLOSE_WAIT":
+        case "TIME_WAIT", "CLOSE_WAIT", "FIN_WAIT1", "FIN_WAIT2":
             return .orange
+        case "CLOSED", "CLOSING":
+            return .red
+        case "SYN_SENT", "SYN_RCVD":
+            return .yellow
         default:
             return .gray
+        }
+    }
+    
+    private func stateIcon(_ state: String) -> String {
+        switch state {
+        case "ESTABLISHED":
+            return "checkmark.circle.fill"
+        case "LISTEN":
+            return "ear.fill"
+        case "TIME_WAIT", "CLOSE_WAIT":
+            return "clock.fill"
+        case "CLOSED", "CLOSING":
+            return "xmark.circle.fill"
+        case "SYN_SENT", "SYN_RCVD":
+            return "arrow.triangle.2.circlepath"
+        default:
+            return "questionmark.circle"
+        }
+    }
+    
+    private func localizedState(_ state: String) -> String {
+        switch state {
+        case "ESTABLISHED":
+            return "已连接"
+        case "LISTEN":
+            return "监听"
+        case "TIME_WAIT":
+            return "等待"
+        case "CLOSE_WAIT":
+            return "关闭等待"
+        case "FIN_WAIT1", "FIN_WAIT2":
+            return "结束等待"
+        case "CLOSED":
+            return "已关闭"
+        case "CLOSING":
+            return "关闭中"
+        case "SYN_SENT":
+            return "连接中"
+        case "SYN_RCVD":
+            return "接收中"
+        default:
+            return state
+        }
+    }
+    
+    private func formatRemoteAddress(_ address: String, _ port: String) -> String {
+        if address == "*" {
+            return "*"
+        }
+        
+        // 简化显示常见端口
+        let commonPorts = [
+            "80": "HTTP",
+            "443": "HTTPS",
+            "53": "DNS",
+            "22": "SSH",
+            "21": "FTP",
+            "25": "SMTP",
+            "110": "POP3",
+            "143": "IMAP",
+            "993": "IMAPS",
+            "995": "POP3S"
+        ]
+        
+        if let serviceName = commonPorts[port] {
+            return "\(address):\(serviceName)"
+        }
+        
+        return "\(address):\(port)"
+    }
+}
+
+// MARK: - DetailInfoRow
+struct DetailInfoRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let content: String
+    var isMultiline: Bool = false
+    var isSelectable: Bool = false
+    var actionType: ActionType = .none
+    var processEntity: ProcessEntity? = nil
+    @State private var isHovering = false
+    
+    enum ActionType {
+        case none
+        case path
+        case pid
+    }
+    
+    var body: some View {
+        HStack(alignment: isMultiline ? .top : .center, spacing: 12) {
+            // 图标
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(iconColor)
+                .frame(width: 20, height: 20)
+                .background(
+                    Circle()
+                        .fill(iconColor.opacity(0.1))
+                )
+            
+            // 内容
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                
+                if isMultiline {
+                    Text(content)
+                        .font(.system(size: 11))
+                        .foregroundColor(.primary)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                } else {
+                    if isSelectable {
+                        Text(content)
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    } else {
+                        Text(content)
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // 功能按钮组
+            HStack(spacing: 6) {
+                // 复制按钮
+                if isSelectable {
+                    Button(action: {
+                        copyToClipboard(text: content)
+                    }) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .opacity(isHovering ? 1.0 : 0.0)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("复制")
+                }
+                
+                // 特定功能按钮
+                switch actionType {
+                case .path:
+                    Button(action: {
+                        openPath(path: content)
+                    }) {
+                        Image(systemName: "folder.badge.gearshape")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
+                            .opacity(isHovering ? 1.0 : 0.0)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("打开路径")
+                    
+                case .pid:
+                    Button(action: {
+                        if let entity = processEntity {
+                            killProcess(pid: entity.pid)
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .opacity(isHovering ? 1.0 : 0.0)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .help("终止进程")
+                    
+                case .none:
+                    EmptyView()
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isHovering ? Color.primary.opacity(0.05) : Color.clear)
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                self.isHovering = hovering
+            }
         }
     }
 }

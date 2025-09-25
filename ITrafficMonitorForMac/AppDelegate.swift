@@ -50,6 +50,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         network.startListenNetwork()
+        
+        // 启动缓存清理定时器
+        startCacheCleanupTimer()
     }
 
     
@@ -97,6 +100,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         print("applicationWillTerminate")
+        
+        // 停止缓存清理定时器
+        stopCacheCleanupTimer()
     }
 
 }

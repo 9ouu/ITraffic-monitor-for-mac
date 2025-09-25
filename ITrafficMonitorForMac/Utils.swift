@@ -208,10 +208,68 @@ func generateSystemProcessBundleId(path: String, processName: String) -> String 
     }
 }
 
+// 连接缓存结构
+struct ConnectionCacheEntry {
+    let connections: [NetworkConnection]
+    let timestamp: Date
+}
+
+// 全局连接缓存
+var CONNECTION_CACHE = [Int: ConnectionCacheEntry]()
+let CONNECTION_CACHE_TTL: TimeInterval = 5.0 // 5秒缓存
+
+// 缓存清理
+func cleanupConnectionCache() {
+    let now = Date()
+    CONNECTION_CACHE = CONNECTION_CACHE.filter { _, entry in
+        now.timeIntervalSince(entry.timestamp) < CONNECTION_CACHE_TTL * 2 // 保留2倍TTL时间
+    }
+}
+
+// 定期清理缓存的定时器
+private var cacheCleanupTimer: Timer?
+
+func startCacheCleanupTimer() {
+    cacheCleanupTimer?.invalidate()
+    cacheCleanupTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
+        cleanupConnectionCache()
+    }
+}
+
+func stopCacheCleanupTimer() {
+    cacheCleanupTimer?.invalidate()
+    cacheCleanupTimer = nil
+}
+
 func getNetworkConnections(for pid: Int) -> [NetworkConnection] {
+    // 检查缓存
+    if let cachedEntry = CONNECTION_CACHE[pid] {
+        let age = Date().timeIntervalSince(cachedEntry.timestamp)
+        if age < CONNECTION_CACHE_TTL {
+            return cachedEntry.connections
+        }
+    }
+    
     var connections: [NetworkConnection] = []
     
-    // 使用 lsof 获取所有网络连接，然后过滤指定 PID
+    // 方法1: 使用 lsof 获取网络连接
+    connections.append(contentsOf: getConnectionsUsingLsof(for: pid))
+    
+    // 方法2: 使用 netstat 作为补充
+    connections.append(contentsOf: getConnectionsUsingNetstat(for: pid))
+    
+    // 去重处理
+    connections = removeDuplicateConnections(connections)
+    
+    // 更新缓存
+    CONNECTION_CACHE[pid] = ConnectionCacheEntry(connections: connections, timestamp: Date())
+    
+    return connections
+}
+
+func getConnectionsUsingLsof(for pid: Int) -> [NetworkConnection] {
+    var connections: [NetworkConnection] = []
+    
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/bin/sh")
     task.arguments = ["-c", "lsof -i -P -n | grep '\(pid)' | grep -E '(TCP|UDP)'"]
@@ -230,79 +288,167 @@ func getNetworkConnections(for pid: Int) -> [NetworkConnection] {
             
             for line in lines {
                 if line.isEmpty { continue }
-                
-                // 解析每一行
-                let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                if components.count >= 8 {
-                    // 查找协议类型（TCP或UDP）
-                    var protocolType = "TCP"
-                    for component in components {
-                        if component == "TCP" {
-                            protocolType = "TCP"
-                            break
-                        } else if component == "UDP" {
-                            protocolType = "UDP"
-                            break
-                        }
-                    }
-                    
-                    // 找到连接信息（最后一个包含IP的部分）
-                    for i in (0..<components.count).reversed() {
-                        let component = components[i]
-                        
-                        if component.contains("->") {
-                            // 已建立的连接
-                            let parts = component.components(separatedBy: "->")
-                            if parts.count == 2 {
-                                let localPart = parseAddressPort(parts[0])
-                                let remotePart = parseAddressPort(parts[1])
-                                
-                                // 获取远程IP的国家信息
-                                let countryInfo = getCountryInfo(for: remotePart.address)
-                                
-                                connections.append(NetworkConnection(
-                                    localAddress: localPart.address,
-                                    localPort: localPart.port,
-                                    remoteAddress: remotePart.address,
-                                    remotePort: remotePart.port,
-                                    protocolType: protocolType,
-                                    state: "ESTABLISHED",
-                                    countryCode: countryInfo.countryCode,
-                                    countryFlag: countryInfo.flag
-                                ))
-                                break
-                            }
-                        } else if component.contains("(LISTEN)") {
-                             // 跳过监听端口，不显示
-                             break
-                        } else if component.contains(":") && component.contains(".") {
-                            // 可能是IP:端口格式
-                            let parts = component.components(separatedBy: ":")
-                            if parts.count == 2 && parts[0].contains(".") {
-                                let localPart = parseAddressPort(component)
-                                
-                                connections.append(NetworkConnection(
-                                    localAddress: localPart.address,
-                                    localPort: localPart.port,
-                                    remoteAddress: "*",
-                                    remotePort: "*",
-                                    protocolType: protocolType,
-                                    state: "UNKNOWN",
-                                    countryCode: nil,
-                                    countryFlag: nil
-                                ))
-                                break
-                            }
-                        }
-                    }
+                if let connection = parseLsofLine(line) {
+                    connections.append(connection)
                 }
             }
         }
     } catch {
-        print("Failed to get network connections: \(error)")
+        print("Failed to get lsof connections: \(error)")
     }
     
     return connections
+}
+
+func getConnectionsUsingNetstat(for pid: Int) -> [NetworkConnection] {
+    var connections: [NetworkConnection] = []
+    
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/bin/sh")
+    task.arguments = ["-c", "netstat -anv | grep '\(pid)' | grep -E '(tcp|udp)'"]
+    
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    task.standardError = Pipe()
+    
+    do {
+        try task.run()
+        task.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let output = String(data: data, encoding: .utf8) {
+            let lines = output.components(separatedBy: .newlines)
+            
+            for line in lines {
+                if line.isEmpty { continue }
+                if let connection = parseNetstatLine(line) {
+                    connections.append(connection)
+                }
+            }
+        }
+    } catch {
+        print("Failed to get netstat connections: \(error)")
+    }
+    
+    return connections
+}
+
+func parseLsofLine(_ line: String) -> NetworkConnection? {
+    let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+    guard components.count >= 8 else { return nil }
+    
+    // 查找协议类型
+    var protocolType = "TCP"
+    for component in components {
+        if component.uppercased().contains("TCP") {
+            protocolType = "TCP"
+            break
+        } else if component.uppercased().contains("UDP") {
+            protocolType = "UDP"
+            break
+        }
+    }
+    
+    // 找到连接信息
+    for i in (0..<components.count).reversed() {
+        let component = components[i]
+        
+        if component.contains("->") {
+            // 已建立的连接
+            let parts = component.components(separatedBy: "->")
+            if parts.count == 2 {
+                let localPart = parseAddressPort(parts[0])
+                let remotePart = parseAddressPort(parts[1])
+                
+                let countryInfo = getCountryInfo(for: remotePart.address)
+                
+                return NetworkConnection(
+                    localAddress: localPart.address,
+                    localPort: localPart.port,
+                    remoteAddress: remotePart.address,
+                    remotePort: remotePart.port,
+                    protocolType: protocolType,
+                    state: "ESTABLISHED",
+                    countryCode: countryInfo.countryCode,
+                    countryFlag: countryInfo.flag
+                )
+            }
+        } else if component.contains("(LISTEN)") {
+            // 监听端口
+            let addressPort = component.replacingOccurrences(of: " (LISTEN)", with: "")
+            let localPart = parseAddressPort(addressPort)
+            
+            return NetworkConnection(
+                localAddress: localPart.address,
+                localPort: localPart.port,
+                remoteAddress: "*",
+                remotePort: "*",
+                protocolType: protocolType,
+                state: "LISTEN",
+                countryCode: nil,
+                countryFlag: nil
+            )
+        } else if component.contains(":") && (component.contains(".") || component.contains("::")) {
+            // IPv4 或 IPv6 地址
+            let localPart = parseAddressPort(component)
+            
+            return NetworkConnection(
+                localAddress: localPart.address,
+                localPort: localPart.port,
+                remoteAddress: "*",
+                remotePort: "*",
+                protocolType: protocolType,
+                state: "UNKNOWN",
+                countryCode: nil,
+                countryFlag: nil
+            )
+        }
+    }
+    
+    return nil
+}
+
+func parseNetstatLine(_ line: String) -> NetworkConnection? {
+    let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+    guard components.count >= 6 else { return nil }
+    
+    let protocolType = components[0].uppercased()
+    guard protocolType.contains("TCP") || protocolType.contains("UDP") else { return nil }
+    
+    let localAddress = components[3]
+    let remoteAddress = components[4]
+    let state = components.count > 5 ? components[5] : "UNKNOWN"
+    
+    let localPart = parseAddressPort(localAddress)
+    let remotePart = parseAddressPort(remoteAddress)
+    
+    let countryInfo = getCountryInfo(for: remotePart.address)
+    
+    return NetworkConnection(
+        localAddress: localPart.address,
+        localPort: localPart.port,
+        remoteAddress: remotePart.address,
+        remotePort: remotePart.port,
+        protocolType: protocolType.contains("TCP") ? "TCP" : "UDP",
+        state: state,
+        countryCode: countryInfo.countryCode,
+        countryFlag: countryInfo.flag
+    )
+}
+
+func removeDuplicateConnections(_ connections: [NetworkConnection]) -> [NetworkConnection] {
+    var uniqueConnections: [NetworkConnection] = []
+    var seenConnections = Set<String>()
+    
+    for connection in connections {
+        let key = "\(connection.localAddress):\(connection.localPort)->\(connection.remoteAddress):\(connection.remotePort)-\(connection.protocolType)"
+        if !seenConnections.contains(key) {
+            seenConnections.insert(key)
+            uniqueConnections.append(connection)
+        }
+    }
+    
+    return uniqueConnections
 }
 
 func getCountryInfo(for ipAddress: String) -> (countryCode: String?, flag: String?) {
@@ -518,19 +664,52 @@ func parseNetworkConnection(from line: String) -> NetworkConnection? {
 }
 
 func parseAddressPort(_ addressPort: String) -> (address: String, port: String) {
-    if let lastColonIndex = addressPort.lastIndex(of: ":") {
-        let address = String(addressPort[..<lastColonIndex])
-        let port = String(addressPort[addressPort.index(after: lastColonIndex)...])
-        
-        // 处理 IPv6 地址
-        if address.hasPrefix("[") && address.hasSuffix("]") {
-            return (String(address.dropFirst().dropLast()), port)
-        }
-        
-        return (address.isEmpty ? "*" : address, port)
+    let trimmed = addressPort.trimmingCharacters(in: .whitespaces)
+    
+    // 处理特殊情况
+    if trimmed == "*" || trimmed == "*.*" || trimmed.isEmpty {
+        return ("*", "*")
     }
     
-    return (addressPort, "*")
+    // IPv6 地址格式: [::1]:8080 或 [2001:db8::1]:443
+    if trimmed.hasPrefix("[") {
+        if let closeBracketIndex = trimmed.firstIndex(of: "]") {
+            let ipv6Address = String(trimmed[trimmed.index(after: trimmed.startIndex)..<closeBracketIndex])
+            let remaining = String(trimmed[trimmed.index(after: closeBracketIndex)...])
+            
+            if remaining.hasPrefix(":") && remaining.count > 1 {
+                let port = String(remaining.dropFirst())
+                return (ipv6Address.isEmpty ? "*" : ipv6Address, port)
+            } else {
+                return (ipv6Address.isEmpty ? "*" : ipv6Address, "*")
+            }
+        }
+    }
+    
+    // IPv4 地址格式: 192.168.1.1:8080
+    if let lastColonIndex = trimmed.lastIndex(of: ":") {
+        let beforeColon = String(trimmed[..<lastColonIndex])
+        let afterColon = String(trimmed[trimmed.index(after: lastColonIndex)...])
+        
+        // 检查是否是IPv6地址（包含多个冒号）
+        let colonCount = trimmed.filter { $0 == ":" }.count
+        if colonCount > 1 {
+            // 可能是IPv6地址，但没有方括号
+            // 尝试从右边找端口号
+            if let portNumber = Int(afterColon), portNumber > 0 && portNumber <= 65535 {
+                return (beforeColon.isEmpty ? "*" : beforeColon, afterColon)
+            } else {
+                // 整个字符串都是IPv6地址
+                return (trimmed, "*")
+            }
+        } else {
+            // IPv4地址
+            return (beforeColon.isEmpty ? "*" : beforeColon, afterColon)
+        }
+    }
+    
+    // 没有端口号的情况
+    return (trimmed, "*")
 }
 
 func resize(image: NSImage, w: Int, h: Int) -> NSImage {

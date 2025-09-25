@@ -92,7 +92,18 @@ class Network {
         var name = nameAndPid
         name.removeLast()
 
-        return ProcessEntity(pid: Int(pid) ?? 0, name: name.joined(separator: "."), inBytes: inBytes, outBytes: outBytes)
+        let processId = Int(pid) ?? 0
+        let entity = ProcessEntity(pid: processId, name: name.joined(separator: "."), inBytes: inBytes, outBytes: outBytes)
+        
+        // 实时连接监控：如果进程有网络活动，预缓存其连接信息
+        if (inBytes > 0 || outBytes > 0) && processId > 0 {
+            DispatchQueue.global(qos: .utility).async {
+                // 异步获取连接信息并缓存，避免阻塞主流程
+                _ = getNetworkConnections(for: processId)
+            }
+        }
+        
+        return entity
     }
 
     @discardableResult
