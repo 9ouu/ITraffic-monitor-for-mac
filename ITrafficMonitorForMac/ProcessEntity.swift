@@ -15,7 +15,9 @@ struct ProcessEntity: Identifiable {
     public var inBytes: Int;
     public var outBytes: Int;
     public var icon: NSImage?;
-    public var path: String?;
+    public var bundleIdentifier: String?;
+    public var executableURL: String?;
+    public var isExpanded: Bool = false
     
     public init(pid: Int, name: String, inBytes: Int, outBytes: Int) {
         self.pid = pid
@@ -23,6 +25,7 @@ struct ProcessEntity: Identifiable {
         self.inBytes = inBytes
         self.outBytes = outBytes
         self.icon = nil
-        self.path = nil
+        self.bundleIdentifier = nil
+        self.executableURL = nil
     }
 }

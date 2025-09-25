@@ -38,6 +38,37 @@ class ListViewModel: ObservableObject {
         }
         
         items = items.filter(){ pidInNewItems["\($0.pid)"] ?? -1 != -1 }
+        
+        items = sort(items: items)
+    }
+    
+    func toggle(item: ProcessEntity) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].isExpanded.toggle()
+        }
+    }
+    
+    func collapseAllItems() {
+        for index in items.indices {
+            items[index].isExpanded = false
+        }
+    }
+    
+    func sort(items: [ProcessEntity]) -> [ProcessEntity] {
+        // 检查是否有展开的项目，如果有则不排序
+        let hasExpandedItems = items.contains { $0.isExpanded }
+        if hasExpandedItems {
+            return items
+        }
+        
+        return items.sorted {  (lhs:ProcessEntity, rhs:ProcessEntity) in
+            let lTotalBytes = lhs.inBytes + lhs.outBytes
+            let rTotalBytes = rhs.inBytes + rhs.outBytes
+            if lTotalBytes != rTotalBytes {
+                return lTotalBytes > rTotalBytes
+            }
+            return lhs.name < rhs.name
+        }
     }
     
     public func shouldClearItemsForReduceSomeMemory() -> Bool {

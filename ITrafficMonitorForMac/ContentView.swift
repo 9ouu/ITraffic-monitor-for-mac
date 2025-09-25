@@ -9,13 +9,13 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var viewModel = SharedStore.listViewModel
+    @ObservedObject var globalModel = SharedStore.globalModel
     let appVersion = Bundle.main.infoDictionary!["CFBundleShortVersionString"] as! String
     
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header View
             HStack(spacing: 0) {
-                // ... (此部分无须修改)
                 Image("Itraffic-logo-text")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -39,7 +39,9 @@ struct ContentView: View {
                             .frame(width: 17, height: 17)
                     }
 
+                    // --- 新增的网络图标按钮 ---
                     Button(action: {
+                        // 打开活动监视器
                         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
                     }) {
                         Image(systemName: "network")
@@ -60,144 +62,210 @@ struct ContentView: View {
             .padding(.horizontal)
             .frame(height: 40)
             
-            // MARK: - List Header
-            HStack(alignment: .center, spacing: 10) {
-                // Application 列
-                HStack(spacing: 4) {
-                    Spacer().frame(width: 22)
-                    Image(systemName: "apple.logo")
-                        .foregroundColor(.secondary)
-                    Text("Application")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // Upload 列
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .foregroundColor(.blue)
-                    Text("Upload")
-                }
-                .frame(width: 85, alignment: .leading)
-                
-                // Download 列
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Download")
-                }
-                .frame(width: 85, alignment: .leading)
-            }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 4)
-            .padding(.bottom, 5)
-
             Divider()
 
             // MARK: - Processes List
             List {
                 ForEach(viewModel.items) { item in
-                    ProcessRow(processEntity: item)
+                    ProcessRow(viewModel: viewModel, processEntity: item)
+                        // 由 listRowInsets 统一控制所有行的边距
                         .listRowInsets(EdgeInsets(top: 8, leading: 4, bottom: 8, trailing: 4))
                 }
             }
             .listStyle(PlainListStyle())
-            .frame(height: 400)
+            .frame(height: 410)
             
         }
-        .frame(width: 400)
+        .frame(width: 385) // 按要求调整宽度
         .background(.thinMaterial)
+        .onChange(of: globalModel.viewShowing) { isShowing in
+            if !isShowing {
+                // 当程序关闭时，自动合上所有展开的信息
+                viewModel.collapseAllItems()
+            }
+        }
     }
 }
 
 struct ProcessRow: View {
+    @ObservedObject var viewModel: ListViewModel
     var processEntity: ProcessEntity
     @State private var isHovering = false
-    @State private var isExpanded = false
   
     var body: some View {
         let appInfo = getAppInfo(pid: processEntity.pid, name: processEntity.name)
         
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 10) {
-                HStack(spacing: 4) {
-                    Image(nsImage: appInfo?.icon ?? NSImage())
-                        .resizable()
-                        .frame(width: 22, height: 22)
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: {
+                viewModel.toggle(item: processEntity)
+            }) {
+                HStack(alignment: .center, spacing: 0) {
+                    HStack(spacing: 4) {
+                        Image(nsImage: appInfo?.icon ?? NSImage())
+                            .resizable()
+                            .frame(width: 22, height: 22)
+                        
+                        Text(appInfo?.name ?? processEntity.name)
+                            .font(.system(size: 13))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(appInfo?.name ?? processEntity.name)
+                    }
+                    .frame(width: 180, alignment: .leading)
                     
-                    Text(appInfo?.name ?? processEntity.name)
-                        .font(.system(size: 13))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .help(appInfo?.name ?? processEntity.name)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // --- 修改 2: 关键修改，实现整齐的左对齐 ---
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .foregroundColor(.blue)
-                    // 让 Text 自动填满 Hstack 中的剩余空间，并将其中的内容左对齐
-                    Text(formatBytes(bytes: processEntity.outBytes))
-                        .font(.system(size: 12).monospacedDigit())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(width: 85, alignment: .leading) // 给整列一个固定的宽度
+                    Spacer()
+                    
+                    HStack(spacing: 5) {
+                        HStack(spacing: 2) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundColor(.blue)
+                                .frame(width: 12, height: 12)
+                            Text(formatBytes(bytes: processEntity.outBytes))
+                                .font(.system(size: 11).monospacedDigit())
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .frame(width: 80, alignment: .leading)
 
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundColor(.green)
-                    // 同样地，让 Text 填满空间并左对齐
-                    Text(formatBytes(bytes: processEntity.inBytes))
-                        .font(.system(size: 12).monospacedDigit())
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 2) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(.green)
+                                .frame(width: 12, height: 12)
+                            Text(formatBytes(bytes: processEntity.inBytes))
+                                .font(.system(size: 11).monospacedDigit())
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .frame(width: 80, alignment: .leading)
+                    }
                 }
-                .frame(width: 85, alignment: .leading) // 给整列一个固定的宽度
+                .background(isHovering ? Color.primary.opacity(0.1) : Color.clear)
+                .cornerRadius(6)
+                .onHover { hovering in
+                    self.isHovering = hovering
+                }
             }
-            .contentShape(Rectangle()) // 确保整行可点击
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
+            .buttonStyle(PlainButtonStyle())
+            .contextMenu {
+                Button(action: {
+                    killProcess(pid: processEntity.pid)
+                }) {
+                    HStack {
+                        Image(systemName: "x.circle.fill")
+                        Text("Kill 程序")
+                    }
+                }
+                
+                Button(action: {
+                    openPath(path: processEntity.executableURL)
+                }) {
+                    HStack {
+                        Image(systemName: "waveform.path.ecg.magnifyingglass")
+                        Text("打开路径")
+                    }
+                }
+                
+                Button(action: {
+                    copyToClipboard(text: processEntity.executableURL ?? "N/A")
+                }) {
+                    HStack {
+                        Image(systemName: "document.on.document")
+                        Text("复制路径")
+                    }
+                }
+                
+                Button(action: {
+                    copyToClipboard(text: processEntity.bundleIdentifier ?? "N/A")
+                }) {
+                    HStack {
+                        Image(systemName: "document.on.document.fill")
+                        Text("复制包名")
+                    }
                 }
             }
             
-            // 展开的进程ID信息
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let identifier = appInfo?.bundleIdentifier {
-                        Text("包名: \(identifier)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 30)
-                            .lineLimit(1)
+            if processEntity.isExpanded {
+                VStack(spacing: 0) {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 6)
+                    
+                    HStack(spacing: 0) {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 20)
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            // 包名行
+                            HStack(spacing: 0) {
+                                Text("包名:")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 50, alignment: .trailing)
+                                
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .frame(width: 5)
+                                
+                                Text(processEntity.bundleIdentifier ?? "N/A")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            
+                            // PID行
+                            HStack(spacing: 0) {
+                                Text("PID:")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 50, alignment: .trailing)
+                                
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .frame(width: 5)
+                                
+                                Text("\(processEntity.pid)".replacingOccurrences(of: ",", with: ""))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            
+                            // Path行
+                            HStack(alignment: .top, spacing: 0) {
+                                Text("Path:")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 50, alignment: .trailing)
+                                
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .frame(width: 5)
+                                
+                                Text(processEntity.executableURL ?? "N/A")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(10)
+                                    .truncationMode(.middle)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(width: 12)
                     }
-                    Text("PID: \(String(processEntity.pid))")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 30)
-                    if let path = appInfo?.path {
-                        Text("Path: \(path)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .padding(.leading, 30)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(height: 6)
                 }
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .transition(.opacity)
                 .background(Color.primary.opacity(0.05))
-                .cornerRadius(4)
-                .padding(.horizontal, 4)
-                .padding(.top, 2)
-                .padding(.bottom, 4)
+                .cornerRadius(6)
+                .transition(.opacity)
             }
-        }
-        .background(isHovering ? Color.primary.opacity(0.1) : Color.clear)
-        .cornerRadius(6)
-        .onHover { hovering in
-            self.isHovering = hovering
         }
     }
 }
@@ -205,7 +273,6 @@ struct ProcessRow: View {
 
 // MARK: - Preview
 struct ContentView_Previews: PreviewProvider {
-    // ... (此部分无须修改)
     static var previews: some View {
         let mockViewModel = ListViewModel()
         let mockProcess = ProcessEntity(pid: 123, name: "ShortApp", inBytes: 12345, outBytes: 67890)

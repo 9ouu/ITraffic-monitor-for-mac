@@ -11,36 +11,40 @@ struct StatusBarView: View {
     @ObservedObject var statusDataModel = SharedStore.statusDataModel
     
     var body: some View {
-        // 使用 HStack 和 Spacer 将内容推向左侧
-        HStack {
+        // 使用 HStack 确保箭头和文字都有足够的空间
+        HStack(spacing: 0) {
             // 使用VStack进行垂直布局，并设置所有子视图向左对齐 (.leading)
             VStack(alignment: .leading, spacing: 1) {
                 
                 // 上传（出站）行
-                HStack(spacing: 4) { // 使用HStack水平排列箭头和文字
+                HStack(spacing: 3) {
                     Image("arrow.up")
                         .resizable()
-                        .frame(width: 6.5, height: 6.5) // 箭头大小设置为6.5
+                        .frame(width: 6.5, height: 6.5)
+                        .aspectRatio(contentMode: .fit)
                     Text(formatBytes(bytes:statusDataModel.totalOutBytes))
-                        .font(.system(size: 9))
+                        .font(.system(size: 9).monospacedDigit())
                         .fontWeight(.medium)
                         .foregroundColor(.black)
-                        .fixedSize(horizontal: true, vertical: false) // 新增：防止文字在水平方向被截断
+                        .fixedSize(horizontal: true, vertical: false)
+                        .lineLimit(1)
                 }
                 
                 // 下载（入站）行
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Image("arrow.down")
                         .resizable()
-                        .frame(width: 6.5, height: 6.5) // 箭头大小设置为6.5
+                        .frame(width: 6.5, height: 6.5)
+                        .aspectRatio(contentMode: .fit)
                     Text(formatBytes(bytes:statusDataModel.totalInBytes))
-                        .font(.system(size: 9))
+                        .font(.system(size: 9).monospacedDigit())
                         .fontWeight(.medium)
                         .foregroundColor(.black)
-                        .fixedSize(horizontal: true, vertical: false) // 新增：防止文字在水平方向被截断
+                        .fixedSize(horizontal: true, vertical: false)
+                        .lineLimit(1)
                 }
             }
-            .padding(.leading, 2) // 给整个视图添加一点左边距，避免贴边
+            .padding(.horizontal, 3)
         }
     }
 }

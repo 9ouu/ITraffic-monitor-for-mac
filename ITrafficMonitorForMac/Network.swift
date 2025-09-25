@@ -40,7 +40,13 @@ class Network {
                 }
                 totalInBytes += entity?.inBytes ?? 0
                 totalOutBytes += entity?.outBytes ?? 0
-                return entity
+                
+                let appInfo = getAppInfo(pid: entity!.pid, name: entity!.name)
+                var newEntity = entity!
+                newEntity.bundleIdentifier = appInfo?.bundleIdentifier
+                newEntity.executableURL = appInfo?.executableURL
+                
+                return newEntity
             }
             DispatchQueue.main.async {
                 self.statusDataModel.update(totalInBytes: totalInBytes, totalOutBytes: totalOutBytes)
