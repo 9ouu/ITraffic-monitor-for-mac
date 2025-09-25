@@ -193,7 +193,7 @@ struct ProcessRow: View {
                     HStack(spacing: 0) {
                         Rectangle()
                             .fill(Color.clear)
-                            .frame(width: 20)
+                            .frame(width: 10)
                         
                         VStack(alignment: .leading, spacing: 6) {
                             // 包名行
@@ -251,11 +251,14 @@ struct ProcessRow: View {
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            
+                            // 网络连接信息
+                            NetworkConnectionsView(processEntity: processEntity)
                         }
                         
                         Rectangle()
                             .fill(Color.clear)
-                            .frame(width: 12)
+                            .frame(width: 8)
                     }
                     
                     Rectangle()
@@ -280,5 +283,157 @@ struct ContentView_Previews: PreviewProvider {
         mockViewModel.items = [mockProcess, anotherProcess, mockProcess]
         
         return ContentView(viewModel: mockViewModel)
+    }
+}
+
+// MARK: - NetworkConnectionsView
+struct NetworkConnectionsView: View {
+    let processEntity: ProcessEntity
+    @State private var connections: [NetworkConnection] = []
+    @State private var isLoading = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 0) {
+                Text("网络:")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: 5)
+                
+                if isLoading {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                        Text("获取连接信息...")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else if connections.isEmpty {
+                    Text("无活动连接")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(alignment: .leading, spacing: 3) {
+                        // 分组显示TCP和UDP连接
+                        let tcpConnections = connections.filter { $0.protocolType == "TCP" }
+                        let udpConnections = connections.filter { $0.protocolType == "UDP" }
+                        
+                        // 显示TCP连接（最多3个）
+                        if !tcpConnections.isEmpty {
+                            ForEach(tcpConnections.prefix(3)) { connection in
+                                NetworkConnectionRow(connection: connection)
+                            }
+                            
+                            if tcpConnections.count > 3 {
+                                Text("... 还有 \(tcpConnections.count - 3) 个TCP连接")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary.opacity(0.7))
+                                    .padding(.leading, 10)
+                            }
+                        }
+                        
+                        // 显示UDP连接（最多3个）
+                        if !udpConnections.isEmpty {
+                            ForEach(udpConnections.prefix(3)) { connection in
+                                NetworkConnectionRow(connection: connection)
+                            }
+                            
+                            if udpConnections.count > 3 {
+                                Text("... 还有 \(udpConnections.count - 3) 个UDP连接")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary.opacity(0.7))
+                                    .padding(.leading, 10)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .onAppear {
+            loadNetworkConnections()
+        }
+    }
+    
+    private func loadNetworkConnections() {
+        isLoading = true
+        
+        DispatchQueue.global(qos: .background).async {
+            let networkConnections = getNetworkConnections(for: processEntity.pid)
+            
+            DispatchQueue.main.async {
+                self.connections = networkConnections
+                self.isLoading = false
+            }
+        }
+    }
+}
+
+// MARK: - NetworkConnectionRow
+struct NetworkConnectionRow: View {
+    let connection: NetworkConnection
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            // 协议标识
+            Text(connection.protocolType)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(connection.protocolType == "TCP" ? Color.blue : Color.orange)
+                .cornerRadius(3)
+            
+            // 连接信息
+            if connection.state == "LISTEN" {
+                Text("监听 :\(connection.localPort)")
+                    .font(.system(size: 10).monospaced())
+                    .foregroundColor(.secondary)
+            } else {
+                HStack(spacing: 4) {
+                    // 国旗
+                    if let flag = connection.countryFlag {
+                        Text(flag)
+                            .font(.system(size: 12))
+                    }
+                    
+                    Text("\(connection.remoteAddress):\(connection.remotePort)")
+                        .font(.system(size: 10).monospaced())
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            
+            Spacer()
+            
+            // 状态
+            Text(connection.state)
+                .font(.system(size: 9))
+                .foregroundColor(connectionStateColor(connection.state))
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
+                .background(connectionStateColor(connection.state).opacity(0.1))
+                .cornerRadius(2)
+        }
+    }
+    
+    private func connectionStateColor(_ state: String) -> Color {
+        switch state {
+        case "ESTABLISHED":
+            return .green
+        case "LISTEN":
+            return .blue
+        case "TIME_WAIT", "CLOSE_WAIT":
+            return .orange
+        default:
+            return .gray
+        }
     }
 }

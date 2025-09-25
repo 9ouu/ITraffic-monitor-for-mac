@@ -7,6 +7,18 @@
 import Cocoa
 import Foundation
 
+struct NetworkConnection: Identifiable {
+    var id = UUID()
+    var localAddress: String
+    var localPort: String
+    var remoteAddress: String
+    var remotePort: String
+    var protocolType: String // TCP, UDP
+    var state: String // ESTABLISHED, LISTEN, etc.
+    var countryCode: String? // 国家代码，如 "CN", "US"
+    var countryFlag: String? // 国旗 emoji
+}
+
 struct ProcessEntity: Identifiable {
     var id = UUID()
     
@@ -17,6 +29,7 @@ struct ProcessEntity: Identifiable {
     public var icon: NSImage?;
     public var bundleIdentifier: String?;
     public var executableURL: String?;
+    public var networkConnections: [NetworkConnection] = []
     public var isExpanded: Bool = false
     
     public init(pid: Int, name: String, inBytes: Int, outBytes: Int) {
